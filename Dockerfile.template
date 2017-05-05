@@ -1,0 +1,36 @@
+FROM resin/%%RESIN_MACHINE_NAME%%-debian AS build
+
+WORKDIR /usr/src/app
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-host arm-unknown-linux-gnueabihf
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+RUN apt-get update && apt-get install -yq \
+	build-essential \
+	git \
+	libssl-dev \
+	pkg-config && \
+	apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN git clone https://github.com/josephroberts/cryptocurrency-tracker.git && \
+	cd cryptocurrency-tracker && \
+	cargo build --release
+
+FROM resin/%%RESIN_MACHINE_NAME%%-python
+
+WORKDIR /usr/src/app
+
+RUN apt-get update && apt-get install -yq \
+	python-smbus \
+	python-numpy && \
+	apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN pip install scrollphathd -v
+
+COPY --from=build /usr/src/app/cryptocurrency-tracker/target/release/cryptocurrency-tracker .
+
+ENV INITSYSTEM ON
+
+COPY . ./
+
+CMD ["python", "main.py"]
